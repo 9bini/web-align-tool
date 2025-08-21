@@ -32,7 +32,12 @@ import {
   CalendarOutlined,
   LinkOutlined,
   MailOutlined,
-  GlobalOutlined
+  GlobalOutlined,
+  CommentOutlined,
+  BlockOutlined,
+  FunctionOutlined,
+  ToolOutlined,
+  FontSizeOutlined
 } from '@ant-design/icons';
 import { sortingPresets } from './utils/sortingUtils';
 import { LanguageSpecificSorter } from './utils/languageSpecificSorters';
@@ -79,112 +84,245 @@ const App: React.FC = () => {
     }
   };
 
-  // Quick action functions
-  const quickActions = [
+  // Comment sorting function
+  const sortComments = (code: string, sortType: 'length' | 'alpha'): string => {
+    const lines = code.split('\n');
+    const commentLines: { line: string; index: number; type: string }[] = [];
+    const nonCommentLines: { line: string; index: number }[] = [];
+
+    lines.forEach((line, index) => {
+      const trimmed = line.trim();
+      if (trimmed.startsWith('//') || trimmed.startsWith('#') || 
+          trimmed.startsWith('/*') || trimmed.startsWith('*') ||
+          trimmed.match(/^\s*<!--/) || trimmed.match(/^\s*-->/)) {
+        let commentType = 'single';
+        if (trimmed.startsWith('/*') || trimmed.startsWith('*')) commentType = 'block';
+        if (trimmed.match(/^\s*<!--/) || trimmed.match(/^\s*-->/)) commentType = 'html';
+        commentLines.push({ line, index, type: commentType });
+      } else {
+        nonCommentLines.push({ line, index });
+      }
+    });
+
+    // Sort comments
+    commentLines.sort((a, b) => {
+      if (sortType === 'length') {
+        return a.line.length - b.line.length;
+      } else {
+        return a.line.localeCompare(b.line);
+      }
+    });
+
+    // Reconstruct with sorted comments
+    const result: string[] = [];
+    let commentIndex = 0;
+    let nonCommentIndex = 0;
+
+    for (let i = 0; i < lines.length; i++) {
+      const isComment = lines[i].trim().startsWith('//') || 
+                       lines[i].trim().startsWith('#') || 
+                       lines[i].trim().startsWith('/*') || 
+                       lines[i].trim().startsWith('*') ||
+                       lines[i].trim().match(/^\s*<!--/) || 
+                       lines[i].trim().match(/^\s*-->/);
+      
+      if (isComment && commentIndex < commentLines.length) {
+        result.push(commentLines[commentIndex].line);
+        commentIndex++;
+      } else if (!isComment && nonCommentIndex < nonCommentLines.length) {
+        result.push(nonCommentLines[nonCommentIndex].line);
+        nonCommentIndex++;
+      } else {
+        result.push(lines[i]);
+      }
+    }
+
+    return result.join('\n');
+  };
+
+  // Categorized quick actions
+  const actionCategories = [
     {
-      name: '알파벳 정렬',
+      name: '기본 정렬',
       icon: <SortAscendingOutlined />,
       color: 'blue',
-      action: () => executeSort(() => {
-        const lines = inputCode.split('\n');
-        return lines.sort().join('\n');
-      }, '알파벳 정렬')
+      actions: [
+        {
+          name: '알파벳 정렬',
+          icon: <FontSizeOutlined />,
+          color: 'blue',
+          action: () => executeSort(() => {
+            const lines = inputCode.split('\n');
+            return lines.sort().join('\n');
+          }, '알파벳 정렬')
+        },
+        {
+          name: '역순 정렬',
+          icon: <SortDescendingOutlined />,
+          color: 'purple',
+          action: () => executeSort(() => {
+            const lines = inputCode.split('\n');
+            return lines.sort().reverse().join('\n');
+          }, '역순 정렬')
+        },
+        {
+          name: '길이순 정렬',
+          icon: <OrderedListOutlined />,
+          color: 'cyan',
+          action: () => executeSort(() => {
+            const lines = inputCode.split('\n');
+            return lines.sort((a, b) => a.length - b.length).join('\n');
+          }, '길이순 정렬')
+        }
+      ]
     },
     {
-      name: '역순 정렬',
-      icon: <SortDescendingOutlined />,
-      color: 'purple',
-      action: () => executeSort(() => {
-        const lines = inputCode.split('\n');
-        return lines.sort().reverse().join('\n');
-      }, '역순 정렬')
-    },
-    {
-      name: 'JS 객체 정렬',
+      name: '언어별 정렬',
       icon: <CodeOutlined />,
       color: 'orange',
-      action: () => executeSort(() => sortingPresets.sortJSObjectProperties(inputCode), 'JS 객체 정렬')
-    },
-    {
-      name: 'CSS 속성 정렬',
-      icon: <BgColorsOutlined />,
-      color: 'cyan',
-      action: () => executeSort(() => sortingPresets.sortCSSProperties(inputCode), 'CSS 속성 정렬')
-    },
-    {
-      name: 'JSON 키 정렬',
-      icon: <FileTextOutlined />,
-      color: 'green',
-      action: () => executeSort(() => {
-        return LanguageSpecificSorter.sortJSON(inputCode, { language: 'json', sortJSONKeys: true });
-      }, 'JSON 키 정렬')
-    },
-    {
-      name: 'Import 정렬',
-      icon: <ApiOutlined />,
-      color: 'geekblue',
-      action: () => executeSort(() => {
-        const lang = detectLanguage(inputCode);
-        if (lang === 'javascript') {
-          return LanguageSpecificSorter.sortJavaScript(inputCode, { language: 'javascript', sortImports: true });
-        } else if (lang === 'python') {
-          return LanguageSpecificSorter.sortPython(inputCode, { language: 'python', sortImports: true });
+      actions: [
+        {
+          name: 'JS 객체 정렬',
+          icon: <CodeOutlined />,
+          color: 'orange',
+          action: () => executeSort(() => sortingPresets.sortJSObjectProperties(inputCode), 'JS 객체 정렬')
+        },
+        {
+          name: 'CSS 속성 정렬',
+          icon: <BgColorsOutlined />,
+          color: 'cyan',
+          action: () => executeSort(() => sortingPresets.sortCSSProperties(inputCode), 'CSS 속성 정렬')
+        },
+        {
+          name: 'JSON 키 정렬',
+          icon: <FileTextOutlined />,
+          color: 'green',
+          action: () => executeSort(() => {
+            return LanguageSpecificSorter.sortJSON(inputCode, { language: 'json', sortJSONKeys: true });
+          }, 'JSON 키 정렬')
+        },
+        {
+          name: 'Import 정렬',
+          icon: <ApiOutlined />,
+          color: 'geekblue',
+          action: () => executeSort(() => {
+            const lang = detectLanguage(inputCode);
+            if (lang === 'javascript') {
+              return LanguageSpecificSorter.sortJavaScript(inputCode, { language: 'javascript', sortImports: true });
+            } else if (lang === 'python') {
+              return LanguageSpecificSorter.sortPython(inputCode, { language: 'python', sortImports: true });
+            }
+            return inputCode;
+          }, 'Import 정렬')
+        },
+        {
+          name: 'HTML 속성 정렬',
+          icon: <TableOutlined />,
+          color: 'red',
+          action: () => executeSort(() => {
+            return LanguageSpecificSorter.sortHTML(inputCode, { language: 'html', sortHTMLAttributes: true });
+          }, 'HTML 속성 정렬')
         }
-        return inputCode;
-      }, 'Import 정렬')
+      ]
     },
     {
-      name: 'HTML 속성 정렬',
-      icon: <TableOutlined />,
-      color: 'red',
-      action: () => executeSort(() => {
-        return LanguageSpecificSorter.sortHTML(inputCode, { language: 'html', sortHTMLAttributes: true });
-      }, 'HTML 속성 정렬')
+      name: '데이터 타입 정렬',
+      icon: <DatabaseOutlined />,
+      color: 'green',
+      actions: [
+        {
+          name: '숫자 정렬',
+          icon: <NumberOutlined />,
+          color: 'volcano',
+          action: () => executeSort(() => {
+            const lines = inputCode.split('\n');
+            return DataTypeSorter.sortByDataType(lines, { dataType: 'number', sortOrder: 'asc' }).join('\n');
+          }, '숫자 정렬')
+        },
+        {
+          name: '날짜 정렬',
+          icon: <CalendarOutlined />,
+          color: 'magenta',
+          action: () => executeSort(() => {
+            const lines = inputCode.split('\n');
+            return DataTypeSorter.sortByDataType(lines, { dataType: 'date', sortOrder: 'asc' }).join('\n');
+          }, '날짜 정렬')
+        },
+        {
+          name: 'URL 정렬',
+          icon: <LinkOutlined />,
+          color: 'lime',
+          action: () => executeSort(() => {
+            const lines = inputCode.split('\n');
+            return DataTypeSorter.sortByDataType(lines, { dataType: 'url', sortOrder: 'asc' }).join('\n');
+          }, 'URL 정렬')
+        },
+        {
+          name: '이메일 정렬',
+          icon: <MailOutlined />,
+          color: 'gold',
+          action: () => executeSort(() => {
+            const lines = inputCode.split('\n');
+            return DataTypeSorter.sortByDataType(lines, { dataType: 'email', sortOrder: 'asc' }).join('\n');
+          }, '이메일 정렬')
+        },
+        {
+          name: 'IP 주소 정렬',
+          icon: <GlobalOutlined />,
+          color: 'pink',
+          action: () => executeSort(() => {
+            const lines = inputCode.split('\n');
+            return DataTypeSorter.sortByDataType(lines, { dataType: 'ip', sortOrder: 'asc' }).join('\n');
+          }, 'IP 주소 정렬')
+        }
+      ]
     },
     {
-      name: '숫자 정렬',
-      icon: <NumberOutlined />,
-      color: 'volcano',
-      action: () => executeSort(() => {
-        const lines = inputCode.split('\n');
-        return DataTypeSorter.sortByDataType(lines, { dataType: 'number', sortOrder: 'asc' }).join('\n');
-      }, '숫자 정렬')
-    },
-    {
-      name: '날짜 정렬',
-      icon: <CalendarOutlined />,
-      color: 'magenta',
-      action: () => executeSort(() => {
-        const lines = inputCode.split('\n');
-        return DataTypeSorter.sortByDataType(lines, { dataType: 'date', sortOrder: 'asc' }).join('\n');
-      }, '날짜 정렬')
-    },
-    {
-      name: 'URL 정렬',
-      icon: <LinkOutlined />,
-      color: 'lime',
-      action: () => executeSort(() => {
-        const lines = inputCode.split('\n');
-        return DataTypeSorter.sortByDataType(lines, { dataType: 'url', sortOrder: 'asc' }).join('\n');
-      }, 'URL 정렬')
-    },
-    {
-      name: '이메일 정렬',
-      icon: <MailOutlined />,
-      color: 'gold',
-      action: () => executeSort(() => {
-        const lines = inputCode.split('\n');
-        return DataTypeSorter.sortByDataType(lines, { dataType: 'email', sortOrder: 'asc' }).join('\n');
-      }, '이메일 정렬')
-    },
-    {
-      name: 'IP 주소 정렬',
-      icon: <GlobalOutlined />,
-      color: 'pink',
-      action: () => executeSort(() => {
-        const lines = inputCode.split('\n');
-        return DataTypeSorter.sortByDataType(lines, { dataType: 'ip', sortOrder: 'asc' }).join('\n');
-      }, 'IP 주소 정렬')
+      name: '주석 정렬',
+      icon: <CommentOutlined />,
+      color: 'purple',
+      actions: [
+        {
+          name: '주석 알파벳 정렬',
+          icon: <CommentOutlined />,
+          color: 'purple',
+          action: () => executeSort(() => sortComments(inputCode, 'alpha'), '주석 알파벳 정렬')
+        },
+        {
+          name: '주석 길이 정렬',
+          icon: <BlockOutlined />,
+          color: 'magenta',
+          action: () => executeSort(() => sortComments(inputCode, 'length'), '주석 길이 정렬')
+        },
+        {
+          name: '주석만 추출',
+          icon: <FunctionOutlined />,
+          color: 'geekblue',
+          action: () => executeSort(() => {
+            const lines = inputCode.split('\n');
+            return lines.filter(line => {
+              const trimmed = line.trim();
+              return trimmed.startsWith('//') || trimmed.startsWith('#') || 
+                     trimmed.startsWith('/*') || trimmed.startsWith('*') ||
+                     trimmed.match(/^\s*<!--/) || trimmed.match(/^\s*-->/);
+            }).join('\n');
+          }, '주석만 추출')
+        },
+        {
+          name: '주석 제거',
+          icon: <ToolOutlined />,
+          color: 'red',
+          action: () => executeSort(() => {
+            const lines = inputCode.split('\n');
+            return lines.filter(line => {
+              const trimmed = line.trim();
+              return !(trimmed.startsWith('//') || trimmed.startsWith('#') || 
+                      trimmed.startsWith('/*') || trimmed.startsWith('*') ||
+                      trimmed.match(/^\s*<!--/) || trimmed.match(/^\s*-->/));
+            }).join('\n');
+          }, '주석 제거')
+        }
+      ]
     }
   ];
 
@@ -263,29 +401,50 @@ const App: React.FC = () => {
                   marginBottom: '16px'
                 }}
               >
-                <div style={{ 
-                  display: 'flex', 
-                  flexWrap: 'wrap', 
-                  gap: '8px',
-                  justifyContent: 'center'
-                }}>
-                  {quickActions.map((action, index) => (
-                    <Button
-                      key={index}
-                      type="primary"
-                      ghost
-                      size="small"
-                      icon={action.icon}
-                      onClick={action.action}
-                      loading={isProcessing}
-                      style={{ 
-                        borderColor: `var(--ant-${action.color}-color)`,
-                        color: `var(--ant-${action.color}-color)`,
-                        minWidth: '100px'
-                      }}
-                    >
-                      {action.name}
-                    </Button>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  {actionCategories.map((category, categoryIndex) => (
+                    <div key={categoryIndex}>
+                      <div style={{ 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        marginBottom: '8px',
+                        justifyContent: 'center'
+                      }}>
+                        <Tag 
+                          icon={category.icon} 
+                          color={category.color}
+                          style={{ fontSize: '13px', fontWeight: 'bold' }}
+                        >
+                          {category.name}
+                        </Tag>
+                      </div>
+                      <div style={{ 
+                        display: 'flex', 
+                        flexWrap: 'wrap', 
+                        gap: '6px',
+                        justifyContent: 'center'
+                      }}>
+                        {category.actions.map((action, actionIndex) => (
+                          <Button
+                            key={`${categoryIndex}-${actionIndex}`}
+                            type="primary"
+                            ghost
+                            size="small"
+                            icon={action.icon}
+                            onClick={action.action}
+                            loading={isProcessing}
+                            style={{ 
+                              borderColor: `var(--ant-${action.color}-color)`,
+                              color: `var(--ant-${action.color}-color)`,
+                              minWidth: '95px',
+                              fontSize: '12px'
+                            }}
+                          >
+                            {action.name}
+                          </Button>
+                        ))}
+                      </div>
+                    </div>
                   ))}
                 </div>
                 <Divider style={{ margin: '16px 0' }} />
