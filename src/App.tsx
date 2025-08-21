@@ -19,8 +19,7 @@ import {
   ClearOutlined, 
   EditOutlined,
   CheckSquareOutlined,
-  SortAscendingOutlined,
-  SwapOutlined
+  SortAscendingOutlined
 } from '@ant-design/icons';
 
 const { Header, Content } = Layout;
@@ -33,6 +32,7 @@ const App: React.FC = () => {
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [selectedDelimiter, setSelectedDelimiter] = useState<string>('/');
   const [detectedLanguage, setDetectedLanguage] = useState<string>('');
+  const [manualLanguage, setManualLanguage] = useState<string>('auto');
 
   const detectLanguage = (code: string): string => {
     const text = code.toLowerCase();
@@ -75,15 +75,220 @@ const App: React.FC = () => {
     return colors[language] || '#666666';
   };
 
-  const replaceSlashWithDoubleSlash = () => {
-    if (!inputCode.trim()) {
-      message.warning('코드를 입력해주세요.');
-      return;
+  const getCurrentLanguage = () => {
+    return manualLanguage === 'auto' ? detectedLanguage : manualLanguage;
+  };
+
+  const tokenizeCode = (code: string, language: string): Array<{text: string, type: string}> => {
+    const tokens: Array<{text: string, type: string}> = [];
+    
+    if (!code.trim()) return tokens;
+    
+    switch(language) {
+      case 'javascript':
+        return tokenizeJavaScript(code);
+      case 'python':
+        return tokenizePython(code);
+      case 'java':
+        return tokenizeJava(code);
+      case 'cpp':
+        return tokenizeCpp(code);
+      case 'sql':
+        return tokenizeSql(code);
+      case 'html':
+        return tokenizeHtml(code);
+      case 'css':
+        return tokenizeCss(code);
+      default:
+        return [{ text: code, type: 'text' }];
+    }
+  };
+
+  const tokenizeJavaScript = (code: string): Array<{text: string, type: string}> => {
+    const keywords = ['function', 'const', 'let', 'var', 'if', 'else', 'for', 'while', 'return', 'class', 'import', 'export', 'from', 'as', 'default'];
+    const tokens: Array<{text: string, type: string}> = [];
+    
+    const lines = code.split('\n');
+    lines.forEach((line, lineIndex) => {
+      if (lineIndex > 0) tokens.push({ text: '\n', type: 'newline' });
+      
+      let remaining = line;
+      while (remaining.length > 0) {
+        // String literals
+        if (remaining.match(/^['"`]/)) {
+          const quote = remaining[0];
+          let i = 1;
+          while (i < remaining.length && remaining[i] !== quote) {
+            if (remaining[i] === '\\') i++; // Skip escaped characters
+            i++;
+          }
+          if (i < remaining.length) i++; // Include closing quote
+          tokens.push({ text: remaining.substring(0, i), type: 'string' });
+          remaining = remaining.substring(i);
+        }
+        // Comments
+        else if (remaining.startsWith('//')) {
+          tokens.push({ text: remaining, type: 'comment' });
+          break;
+        }
+        // Numbers
+        else if (remaining.match(/^\d+(\.\d+)?/)) {
+          const match = remaining.match(/^\d+(\.\d+)?/)![0];
+          tokens.push({ text: match, type: 'number' });
+          remaining = remaining.substring(match.length);
+        }
+        // Keywords
+        else {
+          let found = false;
+          for (const keyword of keywords) {
+            if (remaining.startsWith(keyword) && (remaining.length === keyword.length || !/\w/.test(remaining[keyword.length]))) {
+              tokens.push({ text: keyword, type: 'keyword' });
+              remaining = remaining.substring(keyword.length);
+              found = true;
+              break;
+            }
+          }
+          if (!found) {
+            tokens.push({ text: remaining[0], type: 'text' });
+            remaining = remaining.substring(1);
+          }
+        }
+      }
+    });
+    
+    return tokens;
+  };
+
+  const tokenizePython = (code: string): Array<{text: string, type: string}> => {
+    const keywords = ['def', 'class', 'if', 'elif', 'else', 'for', 'while', 'try', 'except', 'import', 'from', 'as', 'return', 'print', 'True', 'False', 'None'];
+    return tokenizeGeneric(code, keywords, '#');
+  };
+
+  const tokenizeJava = (code: string): Array<{text: string, type: string}> => {
+    const keywords = ['public', 'private', 'class', 'static', 'void', 'int', 'String', 'if', 'else', 'for', 'while', 'return', 'new', 'this', 'super'];
+    return tokenizeGeneric(code, keywords, '//');
+  };
+
+  const tokenizeCpp = (code: string): Array<{text: string, type: string}> => {
+    const keywords = ['#include', 'int', 'char', 'float', 'double', 'void', 'if', 'else', 'for', 'while', 'return', 'class', 'public', 'private', 'cout', 'cin'];
+    return tokenizeGeneric(code, keywords, '//');
+  };
+
+  const tokenizeSql = (code: string): Array<{text: string, type: string}> => {
+    const keywords = ['SELECT', 'FROM', 'WHERE', 'INSERT', 'UPDATE', 'DELETE', 'CREATE', 'TABLE', 'INDEX', 'JOIN', 'INNER', 'LEFT', 'RIGHT', 'ORDER', 'BY', 'GROUP'];
+    return tokenizeGeneric(code, keywords, '--');
+  };
+
+  const tokenizeHtml = (code: string): Array<{text: string, type: string}> => {
+    const tokens: Array<{text: string, type: string}> = [];
+    let remaining = code;
+    
+    while (remaining.length > 0) {
+      if (remaining.startsWith('<')) {
+        const tagEnd = remaining.indexOf('>');
+        if (tagEnd !== -1) {
+          tokens.push({ text: remaining.substring(0, tagEnd + 1), type: 'tag' });
+          remaining = remaining.substring(tagEnd + 1);
+        } else {
+          tokens.push({ text: remaining[0], type: 'text' });
+          remaining = remaining.substring(1);
+        }
+      } else {
+        const nextTag = remaining.indexOf('<');
+        if (nextTag !== -1) {
+          tokens.push({ text: remaining.substring(0, nextTag), type: 'text' });
+          remaining = remaining.substring(nextTag);
+        } else {
+          tokens.push({ text: remaining, type: 'text' });
+          break;
+        }
+      }
     }
     
-    const replacedCode = inputCode.replace(/\//g, '//');
-    setOutputCode(replacedCode);
-    message.success('/ → // 변환 완료!');
+    return tokens;
+  };
+
+  const tokenizeCss = (code: string): Array<{text: string, type: string}> => {
+    const properties = ['color', 'background', 'margin', 'padding', 'border', 'font', 'width', 'height', 'display', 'position'];
+    return tokenizeGeneric(code, properties, '/*', '*/');
+  };
+
+  const tokenizeGeneric = (code: string, keywords: string[], commentStart: string, commentEnd?: string): Array<{text: string, type: string}> => {
+    const tokens: Array<{text: string, type: string}> = [];
+    const lines = code.split('\n');
+    
+    lines.forEach((line, lineIndex) => {
+      if (lineIndex > 0) tokens.push({ text: '\n', type: 'newline' });
+      
+      let remaining = line;
+      while (remaining.length > 0) {
+        // Comments
+        if (remaining.startsWith(commentStart)) {
+          if (commentEnd) {
+            const endIndex = remaining.indexOf(commentEnd);
+            if (endIndex !== -1) {
+              tokens.push({ text: remaining.substring(0, endIndex + commentEnd.length), type: 'comment' });
+              remaining = remaining.substring(endIndex + commentEnd.length);
+            } else {
+              tokens.push({ text: remaining, type: 'comment' });
+              break;
+            }
+          } else {
+            tokens.push({ text: remaining, type: 'comment' });
+            break;
+          }
+        }
+        // String literals
+        else if (remaining.match(/^['"`]/)) {
+          const quote = remaining[0];
+          let i = 1;
+          while (i < remaining.length && remaining[i] !== quote) {
+            if (remaining[i] === '\\') i++;
+            i++;
+          }
+          if (i < remaining.length) i++;
+          tokens.push({ text: remaining.substring(0, i), type: 'string' });
+          remaining = remaining.substring(i);
+        }
+        // Numbers
+        else if (remaining.match(/^\d+(\.\d+)?/)) {
+          const match = remaining.match(/^\d+(\.\d+)?/)![0];
+          tokens.push({ text: match, type: 'number' });
+          remaining = remaining.substring(match.length);
+        }
+        // Keywords
+        else {
+          let found = false;
+          for (const keyword of keywords) {
+            if (remaining.toLowerCase().startsWith(keyword.toLowerCase()) && 
+                (remaining.length === keyword.length || !/\w/.test(remaining[keyword.length]))) {
+              tokens.push({ text: remaining.substring(0, keyword.length), type: 'keyword' });
+              remaining = remaining.substring(keyword.length);
+              found = true;
+              break;
+            }
+          }
+          if (!found) {
+            tokens.push({ text: remaining[0], type: 'text' });
+            remaining = remaining.substring(1);
+          }
+        }
+      }
+    });
+    
+    return tokens;
+  };
+
+  const getTokenColor = (type: string): string => {
+    const colors: { [key: string]: string } = {
+      keyword: '#0066CC',    // Blue
+      string: '#008000',     // Green
+      comment: '#808080',    // Gray
+      number: '#FF6600',     // Orange
+      tag: '#800080',        // Purple (HTML tags)
+      text: '#000000'        // Black
+    };
+    return colors[type] || '#000000';
   };
 
   const sortByDelimiter = () => {
@@ -103,7 +308,17 @@ const App: React.FC = () => {
       }
 
       // 선택된 구분자로 분할하여 컬럼으로 나눔
-      const rows = lines.map(line => line.split(selectedDelimiter).map(col => col.trim()));
+      // /를 //로 변환 후 분할 (오직 /를 선택했을 때만)
+      const processedLines = selectedDelimiter === '/' ? 
+        lines.map(line => line.replace(/\//g, '//')) : lines;
+      
+      const rows = processedLines.map(line => {
+        // 다중 문자 구분자 지원
+        if (selectedDelimiter === '//' || selectedDelimiter.length > 1) {
+          return line.split(selectedDelimiter).map(col => col.trim());
+        }
+        return line.split(selectedDelimiter).map(col => col.trim());
+      });
       
       // 최대 컬럼 수 계산
       const maxCols = Math.max(...rows.map(row => row.length));
@@ -203,7 +418,8 @@ const App: React.FC = () => {
                     onChange={setSelectedDelimiter}
                     style={{ minWidth: '120px' }}
                     options={[
-                      { label: '/ (슬래시)', value: '/' },
+                      { label: '/ → // (슬래시)', value: '/' },
+                      { label: '// (더블 슬래시)', value: '//' },
                       { label: ': (콜론)', value: ':' },
                       { label: ', (콤마)', value: ',' }
                     ]}
@@ -218,14 +434,22 @@ const App: React.FC = () => {
                   >
                     컬럼 정렬
                   </Button>
-                  <Button 
-                    size="large"
-                    icon={<SwapOutlined />}
-                    onClick={replaceSlashWithDoubleSlash}
+                  <Select
+                    value={manualLanguage}
+                    onChange={setManualLanguage}
                     style={{ minWidth: '120px' }}
-                  >
-                    / → //
-                  </Button>
+                    options={[
+                      { label: '자동 감지', value: 'auto' },
+                      { label: 'JavaScript', value: 'javascript' },
+                      { label: 'Python', value: 'python' },
+                      { label: 'Java', value: 'java' },
+                      { label: 'C++', value: 'cpp' },
+                      { label: 'SQL', value: 'sql' },
+                      { label: 'HTML', value: 'html' },
+                      { label: 'CSS', value: 'css' },
+                      { label: 'Text', value: 'text' }
+                    ]}
+                  />
                 </Space>
               </div>
             </Card>
@@ -238,10 +462,10 @@ const App: React.FC = () => {
                   <span>
                     <EditOutlined style={{ marginRight: '8px', color: '#52c41a' }} />
                     입력 텍스트
-                    {detectedLanguage && (
+                    {getCurrentLanguage() && (
                       <Badge 
-                        color={getLanguageColor(detectedLanguage)}
-                        text={detectedLanguage.toUpperCase()}
+                        color={getLanguageColor(getCurrentLanguage())}
+                        text={getCurrentLanguage().toUpperCase()}
                         style={{ marginLeft: '12px' }}
                       />
                     )}
@@ -256,23 +480,56 @@ const App: React.FC = () => {
               }
               style={{ height: '100%' }}
             >
-              <div style={{ height: '500px', border: '1px solid #d9d9d9', borderRadius: '6px', overflow: 'hidden' }}>
+              <div style={{ height: '500px', border: '1px solid #d9d9d9', borderRadius: '6px', overflow: 'hidden', position: 'relative' }}>
+                {inputCode ? (
+                  <div style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    padding: '11px',
+                    fontFamily: 'Monaco, Menlo, "Ubuntu Mono", Consolas, "source-code-pro", monospace',
+                    fontSize: '13px',
+                    lineHeight: '1.6',
+                    background: '#fafafa',
+                    overflow: 'auto',
+                    whiteSpace: 'pre-wrap',
+                    wordBreak: 'break-word',
+                    pointerEvents: 'none',
+                    zIndex: 1
+                  }}>
+                    {tokenizeCode(inputCode, getCurrentLanguage()).map((token, index) => (
+                      <span 
+                        key={index}
+                        style={{ 
+                          color: getTokenColor(token.type),
+                          fontWeight: token.type === 'keyword' ? 'bold' : 'normal'
+                        }}
+                      >
+                        {token.text}
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
                 <TextArea
                   value={inputCode}
                   onChange={(e) => handleInputChange(e.target.value)}
-                  placeholder={`구분자를 포함한 텍스트를 입력하세요... 예:
+                  placeholder={`구분자를 포함한 텍스트/코드를 입력하세요... 예:
 apple/fruit/red
-banana/fruit/yellow  
-carrot:vegetable:orange
-tomato,vegetable,red`}
+function test() { return 'hello'; }
+SELECT * FROM users WHERE age > 18`}
                   style={{ 
                     height: '100%',
                     fontFamily: 'Monaco, Menlo, "Ubuntu Mono", Consolas, "source-code-pro", monospace',
                     fontSize: '13px',
                     lineHeight: '1.6',
                     border: 'none',
-                    background: detectedLanguage ? `${getLanguageColor(detectedLanguage)}08` : '#fafafa',
-                    color: '#262626'
+                    background: inputCode ? 'transparent' : '#fafafa',
+                    color: inputCode ? 'transparent' : '#666',
+                    zIndex: 2,
+                    position: 'relative',
+                    caretColor: '#000'
                   }}
                   bordered={false}
                 />
@@ -331,14 +588,22 @@ tomato,vegetable,red`}
                         }}>
                           {index + 1}
                         </span>
-                        <span 
-                          style={{ 
-                            flex: 1,
-                            color: detectedLanguage ? getLanguageColor(detectedLanguage) : '#262626',
-                            fontWeight: detectedLanguage ? '500' : 'normal'
-                          }}
-                        >
-                          {line}
+                        <span style={{ flex: 1 }}>
+                          {getCurrentLanguage() && getCurrentLanguage() !== 'text' ? (
+                            tokenizeCode(line, getCurrentLanguage()).map((token, tokenIndex) => (
+                              <span 
+                                key={tokenIndex}
+                                style={{ 
+                                  color: getTokenColor(token.type),
+                                  fontWeight: token.type === 'keyword' ? 'bold' : 'normal'
+                                }}
+                              >
+                                {token.text}
+                              </span>
+                            ))
+                          ) : (
+                            <span style={{ color: '#262626' }}>{line}</span>
+                          )}
                         </span>
                       </div>
                     ))}
