@@ -30,6 +30,7 @@ import {
 import { AdvancedSorter, SortingOptions, sortingPresets } from './utils/sortingUtils';
 import { LanguageSpecificSorter, LanguageSortingOptions } from './utils/languageSpecificSorters';
 import { DataTypeSorter, DataTypeSortingOptions } from './utils/dataTypeSorters';
+import PeriodButtonConfig from './components/PeriodButtonConfig';
 
 const { Header, Content } = Layout;
 const { TextArea } = Input;
@@ -351,6 +352,10 @@ const App: React.FC = () => {
             <Title level={4}>정렬 옵션</Title>
             
             <Tabs defaultActiveKey="basic" style={{ marginBottom: 16 }}>
+              <TabPane tab={<span><SettingOutlined />Period Button</span>} key="period">
+                <PeriodButtonConfig />
+              </TabPane>
+              
               <TabPane tab={<span><SettingOutlined />기본 설정</span>} key="basic">
             
             <Row gutter={[16, 16]}>
