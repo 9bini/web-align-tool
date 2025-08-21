@@ -4,7 +4,6 @@ import {
   Card, 
   Input, 
   Button, 
-  Select, 
   Space, 
   Typography, 
   Divider,
@@ -35,11 +34,9 @@ import {
   MailOutlined,
   GlobalOutlined
 } from '@ant-design/icons';
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
-import { vscDarkPlus, vs } from 'react-syntax-highlighter/dist/esm/styles/prism';
-import { AdvancedSorter, SortingOptions, sortingPresets } from './utils/sortingUtils';
-import { LanguageSpecificSorter, LanguageSortingOptions } from './utils/languageSpecificSorters';
-import { DataTypeSorter, DataTypeSortingOptions } from './utils/dataTypeSorters';
+import { sortingPresets } from './utils/sortingUtils';
+import { LanguageSpecificSorter } from './utils/languageSpecificSorters';
+import { DataTypeSorter } from './utils/dataTypeSorters';
 
 const { Header, Content } = Layout;
 const { TextArea } = Input;
@@ -371,24 +368,36 @@ const App: React.FC = () => {
                 background: isDarkTheme ? '#262626' : '#fff'
               }}
             >
-              <div style={{ height: '600px', border: '1px solid #d9d9d9', borderRadius: '6px', overflow: 'auto' }}>
+              <div style={{ height: '600px', border: '1px solid #d9d9d9', borderRadius: '6px', overflow: 'hidden' }}>
                 {outputCode ? (
-                  <SyntaxHighlighter
-                    language={detectedLanguage}
-                    style={isDarkTheme ? vscDarkPlus : vs}
-                    customStyle={{
-                      margin: 0,
-                      padding: '16px',
-                      fontSize: '13px',
-                      lineHeight: '1.6',
-                      background: 'transparent',
-                      height: '100%'
-                    }}
-                    showLineNumbers
-                    wrapLines
-                  >
-                    {outputCode}
-                  </SyntaxHighlighter>
+                  <pre style={{
+                    margin: 0,
+                    padding: '16px',
+                    fontSize: '13px',
+                    lineHeight: '1.6',
+                    fontFamily: 'Monaco, Menlo, "Ubuntu Mono", Consolas, "source-code-pro", monospace',
+                    background: isDarkTheme ? '#1f1f1f' : '#fafafa',
+                    color: isDarkTheme ? '#d4d4d4' : '#262626',
+                    height: '100%',
+                    overflow: 'auto',
+                    whiteSpace: 'pre-wrap',
+                    wordBreak: 'break-word'
+                  }}>
+                    {outputCode.split('\n').map((line, index) => (
+                      <div key={index} style={{ display: 'flex' }}>
+                        <span style={{ 
+                          color: '#999', 
+                          marginRight: '12px',
+                          minWidth: '30px',
+                          textAlign: 'right',
+                          userSelect: 'none'
+                        }}>
+                          {index + 1}
+                        </span>
+                        <span style={{ flex: 1 }}>{line}</span>
+                      </div>
+                    ))}
+                  </pre>
                 ) : (
                   <div style={{ 
                     height: '100%', 
