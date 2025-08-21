@@ -11,7 +11,6 @@ import {
   message,
   Tooltip,
   Tag,
-  Select,
   Badge,
   Switch
 } from 'antd';
@@ -369,13 +368,18 @@ const App: React.FC = () => {
         // 빈 줄은 그대로 두기
         if (!trimmed) return '';
         
+        // 주석만 있는 줄은 그대로 (불필요한 주석 제거)
+        if (trimmed.match(/^\/\/\s*$/)) {
+          return ''; // 빈 주석 제거
+        }
+        
         // 중괄호나 세미콜론만 있는 줄은 들여쓰기 없이
         if (trimmed === '{' || trimmed === '}' || trimmed === '};') {
           return trimmed;
         }
         
         // 콤마로 시작하는 줄은 들여쓰기 적용
-        if (trimmed.startsWith(',') || trimmed.includes(':')) {
+        if (trimmed.startsWith(',') || (trimmed.includes(':') && !trimmed.match(/^\w+\s*\{/))) {
           return '    ' + trimmed; // 4스페이스 들여쓰기
         }
         
@@ -554,55 +558,140 @@ const App: React.FC = () => {
         <Row gutter={[24, 24]}>
           <Col span={24}>
             <Card style={{ marginBottom: '24px' }}>
-              <div style={{ textAlign: 'center', marginBottom: '24px' }}>
-                <Space size="middle" wrap>
-                  <Select
-                    value={selectedDelimiter}
-                    onChange={setSelectedDelimiter}
-                    style={{ minWidth: '140px' }}
-                    options={[
-                      { label: '/ → // (슬래시)', value: '/' },
-                      { label: '// (더블 슬래시)', value: '//' },
-                      { label: ': (콜론)', value: ':' },
-                      { label: ', (콤마)', value: ',' }
-                    ]}
-                  />
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <BulbOutlined style={{ color: smartAlignment ? '#1890ff' : '#999' }} />
-                    <Switch 
-                      checked={smartAlignment}
-                      onChange={setSmartAlignment}
-                      size="small"
-                    />
-                    <span style={{ fontSize: '12px', color: '#666' }}>스마트 정렬</span>
+              <div style={{ marginBottom: '24px' }}>
+                {/* 구분자 선택 버튼들 */}
+                <div style={{ marginBottom: '16px' }}>
+                  <div style={{ fontSize: '14px', fontWeight: '500', marginBottom: '8px', color: '#666' }}>
+                    구분자 선택:
                   </div>
-                  <Button 
-                    type="primary" 
-                    size="large"
-                    icon={<SortAscendingOutlined />}
-                    onClick={sortByDelimiter}
-                    loading={isProcessing}
-                    style={{ minWidth: '150px' }}
-                  >
-                    컬럼 정렬
-                  </Button>
-                  <Select
-                    value={manualLanguage}
-                    onChange={setManualLanguage}
-                    style={{ minWidth: '120px' }}
-                    options={[
-                      { label: '자동 감지', value: 'auto' },
-                      { label: 'JavaScript', value: 'javascript' },
-                      { label: 'Python', value: 'python' },
-                      { label: 'Java', value: 'java' },
-                      { label: 'C++', value: 'cpp' },
-                      { label: 'SQL', value: 'sql' },
-                      { label: 'HTML', value: 'html' },
-                      { label: 'CSS', value: 'css' },
-                      { label: 'Text', value: 'text' }
-                    ]}
-                  />
-                </Space>
+                  <Space wrap>
+                    <Button 
+                      type={selectedDelimiter === '/' ? 'primary' : 'default'}
+                      onClick={() => setSelectedDelimiter('/')}
+                      size="middle"
+                    >
+                      / → //
+                    </Button>
+                    <Button 
+                      type={selectedDelimiter === '//' ? 'primary' : 'default'}
+                      onClick={() => setSelectedDelimiter('//')}
+                      size="middle"
+                    >
+                      //
+                    </Button>
+                    <Button 
+                      type={selectedDelimiter === ':' ? 'primary' : 'default'}
+                      onClick={() => setSelectedDelimiter(':')}
+                      size="middle"
+                    >
+                      :
+                    </Button>
+                    <Button 
+                      type={selectedDelimiter === ',' ? 'primary' : 'default'}
+                      onClick={() => setSelectedDelimiter(',')}
+                      size="middle"
+                    >
+                      ,
+                    </Button>
+                  </Space>
+                </div>
+
+                {/* 언어 선택 버튼들 */}
+                <div style={{ marginBottom: '16px' }}>
+                  <div style={{ fontSize: '14px', fontWeight: '500', marginBottom: '8px', color: '#666' }}>
+                    언어 선택:
+                  </div>
+                  <Space wrap>
+                    <Button 
+                      type={manualLanguage === 'auto' ? 'primary' : 'default'}
+                      onClick={() => setManualLanguage('auto')}
+                      size="small"
+                    >
+                      자동
+                    </Button>
+                    <Button 
+                      type={manualLanguage === 'javascript' ? 'primary' : 'default'}
+                      onClick={() => setManualLanguage('javascript')}
+                      size="small"
+                    >
+                      JavaScript
+                    </Button>
+                    <Button 
+                      type={manualLanguage === 'python' ? 'primary' : 'default'}
+                      onClick={() => setManualLanguage('python')}
+                      size="small"
+                    >
+                      Python
+                    </Button>
+                    <Button 
+                      type={manualLanguage === 'java' ? 'primary' : 'default'}
+                      onClick={() => setManualLanguage('java')}
+                      size="small"
+                    >
+                      Java
+                    </Button>
+                    <Button 
+                      type={manualLanguage === 'cpp' ? 'primary' : 'default'}
+                      onClick={() => setManualLanguage('cpp')}
+                      size="small"
+                    >
+                      C++
+                    </Button>
+                    <Button 
+                      type={manualLanguage === 'sql' ? 'primary' : 'default'}
+                      onClick={() => setManualLanguage('sql')}
+                      size="small"
+                    >
+                      SQL
+                    </Button>
+                    <Button 
+                      type={manualLanguage === 'html' ? 'primary' : 'default'}
+                      onClick={() => setManualLanguage('html')}
+                      size="small"
+                    >
+                      HTML
+                    </Button>
+                    <Button 
+                      type={manualLanguage === 'css' ? 'primary' : 'default'}
+                      onClick={() => setManualLanguage('css')}
+                      size="small"
+                    >
+                      CSS
+                    </Button>
+                    <Button 
+                      type={manualLanguage === 'text' ? 'primary' : 'default'}
+                      onClick={() => setManualLanguage('text')}
+                      size="small"
+                    >
+                      Text
+                    </Button>
+                  </Space>
+                </div>
+
+                {/* 실행 버튼들 */}
+                <div style={{ textAlign: 'center' }}>
+                  <Space size="middle">
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <BulbOutlined style={{ color: smartAlignment ? '#1890ff' : '#999' }} />
+                      <Switch 
+                        checked={smartAlignment}
+                        onChange={setSmartAlignment}
+                        size="small"
+                      />
+                      <span style={{ fontSize: '12px', color: '#666' }}>스마트 정렬</span>
+                    </div>
+                    <Button 
+                      type="primary" 
+                      size="large"
+                      icon={<SortAscendingOutlined />}
+                      onClick={sortByDelimiter}
+                      loading={isProcessing}
+                      style={{ minWidth: '150px' }}
+                    >
+                      컬럼 정렬
+                    </Button>
+                  </Space>
+                </div>
               </div>
             </Card>
           </Col>
