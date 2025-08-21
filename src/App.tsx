@@ -529,6 +529,174 @@ const App: React.FC = () => {
     setDetectedLanguage(language);
   };
 
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      
+      const textarea = e.target as HTMLTextAreaElement;
+      const start = textarea.selectionStart;
+      const end = textarea.selectionEnd;
+      const value = textarea.value;
+      
+      if (e.shiftKey) {
+        // Shift+Tab: 들여쓰기 제거
+        const lines = value.split('\n');
+        const startLineIndex = value.substring(0, start).split('\n').length - 1;
+        const endLineIndex = value.substring(0, end).split('\n').length - 1;
+        
+        let newValue = '';
+        let newStart = start;
+        let newEnd = end;
+        let removedChars = 0;
+        
+        lines.forEach((line, index) => {
+          if (index >= startLineIndex && index <= endLineIndex) {
+            if (line.startsWith('    ')) {
+              // 4개 공백 제거
+              const newLine = line.substring(4);
+              newValue += newLine;
+              if (index === startLineIndex) newStart = Math.max(0, start - 4);
+              if (index <= endLineIndex) removedChars += 4;
+            } else if (line.startsWith('\t')) {
+              // 탭 문자 제거
+              const newLine = line.substring(1);
+              newValue += newLine;
+              if (index === startLineIndex) newStart = Math.max(0, start - 1);
+              if (index <= endLineIndex) removedChars += 1;
+            } else {
+              newValue += line;
+            }
+          } else {
+            newValue += line;
+          }
+          
+          if (index < lines.length - 1) {
+            newValue += '\n';
+          }
+        });
+        
+        newEnd = end - removedChars;
+        
+        setInputCode(newValue);
+        
+        // 커서 위치 복원
+        setTimeout(() => {
+          textarea.setSelectionRange(newStart, newEnd);
+        }, 0);
+        
+      } else {
+        // Tab: 들여쓰기 추가
+        if (start !== end) {
+          // 여러 줄 선택된 경우
+          const lines = value.split('\n');
+          const startLineIndex = value.substring(0, start).split('\n').length - 1;
+          const endLineIndex = value.substring(0, end).split('\n').length - 1;
+          
+          let newValue = '';
+          let addedChars = 0;
+          
+          lines.forEach((line, index) => {
+            if (index >= startLineIndex && index <= endLineIndex) {
+              newValue += '    ' + line; // 4개 공백 추가
+              addedChars += 4;
+            } else {
+              newValue += line;
+            }
+            
+            if (index < lines.length - 1) {
+              newValue += '\n';
+            }
+          });
+          
+          setInputCode(newValue);
+          
+          // 커서 위치 조정
+          setTimeout(() => {
+            textarea.setSelectionRange(start + 4, end + addedChars);
+          }, 0);
+          
+        } else {
+          // 단일 위치에 탭 삽입
+          const newValue = value.substring(0, start) + '    ' + value.substring(end);
+          setInputCode(newValue);
+          
+          // 커서 위치 조정
+          setTimeout(() => {
+            textarea.setSelectionRange(start + 4, start + 4);
+          }, 0);
+        }
+      }
+      
+      // 언어 감지 업데이트
+      const language = detectLanguage(inputCode);
+      setDetectedLanguage(language);
+    }
+    
+    // Ctrl+A: 전체 선택
+    else if (e.ctrlKey && e.key === 'a') {
+      // 기본 동작 사용
+    }
+    
+    // Ctrl+/ or Cmd+/: 주석 토글
+    else if ((e.ctrlKey || e.metaKey) && e.key === '/') {
+      e.preventDefault();
+      
+      const textarea = e.target as HTMLTextAreaElement;
+      const start = textarea.selectionStart;
+      const end = textarea.selectionEnd;
+      const value = textarea.value;
+      const lines = value.split('\n');
+      
+      const startLineIndex = value.substring(0, start).split('\n').length - 1;
+      const endLineIndex = value.substring(0, end).split('\n').length - 1;
+      
+      let newValue = '';
+      let newStart = start;
+      let newEnd = end;
+      let addedChars = 0;
+      
+      lines.forEach((line, index) => {
+        if (index >= startLineIndex && index <= endLineIndex) {
+          if (line.trim().startsWith('//')) {
+            // 주석 제거
+            const uncommented = line.replace(/^(\s*)\/\/\s?/, '$1');
+            newValue += uncommented;
+            const removedChars = line.length - uncommented.length;
+            if (index === startLineIndex) newStart = Math.max(0, start - removedChars);
+            if (index <= endLineIndex) addedChars -= removedChars;
+          } else {
+            // 주석 추가
+            const indentMatch = line.match(/^\s*/);
+            const indent = indentMatch ? indentMatch[0] : '';
+            const content = line.substring(indent.length);
+            const commented = indent + '// ' + content;
+            newValue += commented;
+            const addedCharsInLine = commented.length - line.length;
+            if (index === startLineIndex) newStart = start + addedCharsInLine;
+            if (index <= endLineIndex) addedChars += addedCharsInLine;
+          }
+        } else {
+          newValue += line;
+        }
+        
+        if (index < lines.length - 1) {
+          newValue += '\n';
+        }
+      });
+      
+      newEnd = end + addedChars;
+      
+      setInputCode(newValue);
+      
+      setTimeout(() => {
+        textarea.setSelectionRange(newStart, newEnd);
+      }, 0);
+      
+      const language = detectLanguage(newValue);
+      setDetectedLanguage(language);
+    }
+  };
+
   return (
     <Layout style={{ minHeight: '100vh', background: '#f0f2f5' }}>
       <Header style={{ 
@@ -793,17 +961,22 @@ const App: React.FC = () => {
                 <TextArea
                   value={inputCode}
                   onChange={(e) => handleInputChange(e.target.value)}
+                  onKeyDown={handleKeyDown}
                   placeholder={`구분자를 포함한 텍스트/코드를 입력하세요...
 
 예시:
 var config = {
-pardiv : 'periodBtn',
-periodType : "event"
+    pardiv : 'periodBtn',
+    periodType : "event"
 };
 
-function test() { return 'hello'; }
+function test() {
+    return 'hello';
+}
 
-SELECT * FROM users WHERE age > 18`}
+SELECT * FROM users WHERE age > 18
+
+ℹ️ Tab: 들여쓰기 | Shift+Tab: 들여쓰기 제거`}
                   style={{ 
                     height: '100%',
                     fontFamily: 'Monaco, Menlo, "Ubuntu Mono", Consolas, "source-code-pro", monospace',
