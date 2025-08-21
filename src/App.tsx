@@ -37,17 +37,49 @@ const App: React.FC = () => {
 
     setIsProcessing(true);
     try {
-      const lines = inputCode.split('\n');
+      const lines = inputCode.split('\n').filter(line => line.trim() !== '');
       
-      // Sort lines by content before the '/' delimiter
-      const sortedLines = lines.sort((a, b) => {
-        const aBeforeSlash = a.split('/')[0].trim();
-        const bBeforeSlash = b.split('/')[0].trim();
-        return aBeforeSlash.localeCompare(bBeforeSlash);
+      if (lines.length === 0) {
+        message.warning('정렬할 내용이 없습니다.');
+        setIsProcessing(false);
+        return;
+      }
+
+      // 각 행을 '/' 구분자로 분할하여 컬럼으로 나눔
+      const rows = lines.map(line => line.split('/').map(col => col.trim()));
+      
+      // 최대 컬럼 수 계산
+      const maxCols = Math.max(...rows.map(row => row.length));
+      
+      // 각 컬럼의 최대 너비 계산
+      const colWidths: number[] = [];
+      for (let colIndex = 0; colIndex < maxCols; colIndex++) {
+        let maxWidth = 0;
+        for (let rowIndex = 0; rowIndex < rows.length; rowIndex++) {
+          const cellContent = rows[rowIndex][colIndex] || '';
+          maxWidth = Math.max(maxWidth, cellContent.length);
+        }
+        colWidths[colIndex] = maxWidth;
+      }
+      
+      // 각 행을 가독성 있게 정렬하여 재구성
+      const alignedLines = rows.map(row => {
+        const alignedRow = [];
+        for (let colIndex = 0; colIndex < maxCols; colIndex++) {
+          const cellContent = row[colIndex] || '';
+          if (colIndex === maxCols - 1) {
+            // 마지막 컬럼은 패딩하지 않음
+            alignedRow.push(cellContent);
+          } else {
+            // 왼쪽 정렬로 패딩
+            alignedRow.push(cellContent.padEnd(colWidths[colIndex], ' '));
+          }
+        }
+        return alignedRow.join(' / ');
       });
       
-      setOutputCode(sortedLines.join('\n'));
-      message.success('/ 구분자 기준 정렬 완료!');
+      setOutputCode(alignedLines.join('\n'));
+      message.success('/ 구분자 기준 컬럼 정렬 완료!');
     } catch (error) {
       message.error('정렬 중 오류가 발생했습니다.');
       console.error(error);
@@ -90,7 +122,7 @@ const App: React.FC = () => {
               margin: 0,
               fontWeight: 600
             }}>
-              / 구분자 정렬기
+              / 구분자 컬럼 정렬기
             </Title>
           </div>
         </div>
@@ -109,7 +141,7 @@ const App: React.FC = () => {
                   loading={isProcessing}
                   style={{ minWidth: '200px' }}
                 >
-                  / 구분자로 정렬
+                  / 구분자 컬럼 정렬
                 </Button>
               </div>
             </Card>
@@ -138,10 +170,10 @@ const App: React.FC = () => {
                   value={inputCode}
                   onChange={(e) => setInputCode(e.target.value)}
                   placeholder={`/ 구분자를 포함한 텍스트를 입력하세요... 예:
-apple/과일
-banana/과일
-carrot/야채
-tomato/야채`}
+apple/fruit/red
+banana/fruit/yellow  
+carrot/vegetable/orange
+tomato/vegetable/red`}
                   style={{ 
                     height: '100%',
                     fontFamily: 'Monaco, Menlo, "Ubuntu Mono", Consolas, "source-code-pro", monospace',
@@ -225,7 +257,7 @@ tomato/야채`}
                     gap: '8px'
                   }}>
                     <SortAscendingOutlined style={{ fontSize: '24px' }} />
-                    <div>정렬된 결과가 여기에 표시됩니다</div>
+                    <div>컬럼 정렬된 결과가 여기에 표시됩니다</div>
                   </div>
                 )}
               </div>
