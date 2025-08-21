@@ -288,9 +288,15 @@ const App: React.FC = () => {
     let inQuotes = false;
     let quoteChar = '';
     
-    for (let i = 0; i < line.length; i++) {
-      const char = line[i];
-      const remaining = line.substring(i);
+    // 줄의 시작 부분에서 콤마나 다른 구분자로 시작하는 경우 처리
+    let trimmedLine = line.trim();
+    if (trimmedLine.startsWith(delimiter)) {
+      trimmedLine = trimmedLine.substring(delimiter.length).trim();
+    }
+    
+    for (let i = 0; i < trimmedLine.length; i++) {
+      const char = trimmedLine[i];
+      const remaining = trimmedLine.substring(i);
       
       // 따옴표 처리
       if ((char === '"' || char === "'" || char === '`') && !inQuotes) {
@@ -308,19 +314,24 @@ const App: React.FC = () => {
       }
       // 구분자 발견
       else if (remaining.startsWith(delimiter)) {
-        // 시간 패턴 보호 (HH:MM:SS, HH:MM)
+        // 시간 패턴 보호 (HH:MM:SS, HH:MM, YYYY-MM-DD HH:MM:SS)
         if (delimiter === ':') {
-          const beforeColon = current.match(/(\d{1,2})$/);
-          const afterColon = remaining.match(/^:(\d{1,2})/); 
+          // 더 정교한 시간 패턴 감지
+          const timePattern1 = current.match(/(\d{1,2})$/);
+          const timePattern2 = remaining.match(/^:(\d{1,2})/);
+          const dateTimePattern = current.match(/(\d{4}-\d{2}-\d{2}\s+\d{1,2})$/);
           
-          if (beforeColon && afterColon) {
+          if ((timePattern1 && timePattern2) || dateTimePattern) {
             // 시간 패턴이므로 분할하지 않음
             current += char;
             continue;
           }
         }
         
-        result.push(current.trim());
+        // 비어있지 않은 내용만 추가
+        if (current.trim()) {
+          result.push(current.trim());
+        }
         current = '';
         i += delimiter.length - 1; // 다중 문자 구분자 처리
       } else {
@@ -328,7 +339,8 @@ const App: React.FC = () => {
       }
     }
     
-    if (current) {
+    // 마지막 내용 추가
+    if (current.trim()) {
       result.push(current.trim());
     }
     
@@ -383,13 +395,16 @@ const App: React.FC = () => {
       // 최대 컬럼 수 계산
       const maxCols = Math.max(...rows.map(row => row.length));
       
-      // 각 컬럼의 최대 너비 계산
+      // 각 컬럼의 최대 너비 계산 (개선된 방식)
       const colWidths: number[] = [];
       for (let colIndex = 0; colIndex < maxCols; colIndex++) {
         let maxWidth = 0;
         for (let rowIndex = 0; rowIndex < rows.length; rowIndex++) {
           const cellContent = rows[rowIndex][colIndex] || '';
-          maxWidth = Math.max(maxWidth, cellContent.length);
+          // 마지막 컬럼이 아니고 내용이 있는 경우만 너비 계산
+          if (colIndex < maxCols - 1 && cellContent.trim()) {
+            maxWidth = Math.max(maxWidth, cellContent.length);
+          }
         }
         colWidths[colIndex] = maxWidth;
       }
@@ -399,15 +414,32 @@ const App: React.FC = () => {
         const alignedRow = [];
         for (let colIndex = 0; colIndex < maxCols; colIndex++) {
           const cellContent = row[colIndex] || '';
-          if (colIndex === maxCols - 1) {
-            // 마지막 컬럼은 패딩하지 않음
+          
+          if (colIndex === 0) {
+            // 첫 번째 컬럼: 왜쪽 정렬
+            alignedRow.push(cellContent.padEnd(colWidths[colIndex], ' '));
+          } else if (colIndex === maxCols - 1) {
+            // 마지막 컬럼: 패딩 없이
             alignedRow.push(cellContent);
           } else {
-            // 왼쪽 정렬로 패딩
+            // 중간 컬럼: 왜쪽 정렬
             alignedRow.push(cellContent.padEnd(colWidths[colIndex], ' '));
           }
         }
-        return alignedRow.join(` ${selectedDelimiter} `);
+        
+        // 구분자 주변에 적절한 공백 추가
+        let result = alignedRow[0];
+        for (let i = 1; i < alignedRow.length; i++) {
+          if (selectedDelimiter === ',' || selectedDelimiter === ';') {
+            // 콤마나 세미콜론의 경우 앞에 공백 없이
+            result += selectedDelimiter + ' ' + alignedRow[i];
+          } else {
+            // 다른 구분자는 앞뒤에 공백
+            result += ' ' + selectedDelimiter + ' ' + alignedRow[i];
+          }
+        }
+        
+        return result;
       });
       
       setOutputCode(alignedLines.join('\n'));
