@@ -279,6 +279,6 @@ newPreset: (text: string): string => {
 
 ---
 
-**Terragon Labs**에서 개발한 고급 코드 정렬 도구입니다. 모든 개발자의 생산성 향상을 위해 만들어졌습니다. 🚀
+모든 개발자의 생산성 향상을 위해 만들어진 고급 코드 정렬 도구입니다. 🚀
 
-[![Made with ❤️ by Terragon Labs](https://img.shields.io/badge/Made%20with%20❤️%20by-Terragon%20Labs-red.svg)](https://github.com/terragon)
+[![Made with ❤️](https://img.shields.io/badge/Made%20with%20❤️-red.svg)](https://github.com/9bini)
