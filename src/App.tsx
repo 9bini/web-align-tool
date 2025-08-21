@@ -348,15 +348,42 @@ const App: React.FC = () => {
   };
 
   const getTokenColor = (type: string): string => {
+    // VS Code Dark Theme 스타일 색상
     const colors: { [key: string]: string } = {
-      keyword: '#0066CC',    // Blue
-      string: '#008000',     // Green
-      comment: '#808080',    // Gray
-      number: '#FF6600',     // Orange
-      tag: '#800080',        // Purple (HTML tags)
-      text: '#000000'        // Black
+      keyword: '#569CD6',    // Light Blue (var, function, class)
+      string: '#CE9178',     // Light Orange (strings)
+      comment: '#6A9955',    // Green (comments)
+      number: '#B5CEA8',     // Light Green (numbers)
+      tag: '#92C5F8',        // Light Blue (HTML tags)
+      text: '#D4D4D4',       // Light Gray (default text)
+      newline: 'transparent'
     };
-    return colors[type] || '#000000';
+    return colors[type] || '#D4D4D4';
+  };
+
+  const formatWithLanguageRules = (alignedLines: string[], language: string): string[] => {
+    if (language === 'javascript' || language === 'java' || language === 'cpp') {
+      return alignedLines.map((line) => {
+        const trimmed = line.trim();
+        
+        // 빈 줄은 그대로 두기
+        if (!trimmed) return '';
+        
+        // 중괄호나 세미콜론만 있는 줄은 들여쓰기 없이
+        if (trimmed === '{' || trimmed === '}' || trimmed === '};') {
+          return trimmed;
+        }
+        
+        // 콤마로 시작하는 줄은 들여쓰기 적용
+        if (trimmed.startsWith(',') || trimmed.includes(':')) {
+          return '    ' + trimmed; // 4스페이스 들여쓰기
+        }
+        
+        return trimmed;
+      });
+    }
+    
+    return alignedLines;
   };
 
   const sortByDelimiter = () => {
@@ -367,9 +394,13 @@ const App: React.FC = () => {
 
     setIsProcessing(true);
     try {
-      const lines = inputCode.split('\n').filter(line => line.trim() !== '');
+      // 모든 줄을 유지 (빈 줄 포함)
+      const lines = inputCode.split('\n');
       
-      if (lines.length === 0) {
+      // 빈 줄이 아닌 줄만 정렬 대상으로 하기
+      const nonEmptyLines = lines.filter(line => line.trim() !== '');
+      
+      if (nonEmptyLines.length === 0) {
         message.warning('정렬할 내용이 없습니다.');
         setIsProcessing(false);
         return;
@@ -378,7 +409,7 @@ const App: React.FC = () => {
       // 선택된 구분자로 분할하여 컬럼으로 나눔
       // /를 //로 변환 후 분할 (오직 /를 선택했을 때만)
       const processedLines = selectedDelimiter === '/' ? 
-        lines.map(line => line.replace(/\//g, '//')) : lines;
+        nonEmptyLines.map(line => line.replace(/\//g, '//')) : nonEmptyLines;
       
       const rows = processedLines.map(line => {
         if (smartAlignment) {
@@ -442,7 +473,27 @@ const App: React.FC = () => {
         return result;
       });
       
-      setOutputCode(alignedLines.join('\n'));
+      // 빈 줄 처리 및 언어별 포매팅 적용
+      const finalLines: string[] = [];
+      let alignedIndex = 0;
+      
+      for (let i = 0; i < lines.length; i++) {
+        if (lines[i].trim() === '') {
+          // 빈 줄은 그대로 유지
+          finalLines.push('');
+        } else {
+          // 비어있지 않은 줄은 정렬된 결과 사용
+          if (alignedIndex < alignedLines.length) {
+            finalLines.push(alignedLines[alignedIndex]);
+            alignedIndex++;
+          }
+        }
+      }
+      
+      // 언어별 포매팅 적용
+      const formattedLines = formatWithLanguageRules(finalLines, getCurrentLanguage());
+      
+      setOutputCode(formattedLines.join('\n'));
       message.success(`${selectedDelimiter} 구분자 기준 컬럼 정렬 완료!`);
     } catch (error) {
       message.error('정렬 중 오류가 발생했습니다.');
@@ -581,24 +632,59 @@ const App: React.FC = () => {
               }
               style={{ height: '100%' }}
             >
-              <div style={{ height: '500px', border: '1px solid #d9d9d9', borderRadius: '6px', overflow: 'hidden', position: 'relative' }}>
+              <div style={{ 
+                height: '500px', 
+                border: '1px solid #d9d9d9', 
+                borderRadius: '6px', 
+                overflow: 'hidden', 
+                position: 'relative',
+                background: '#1e1e1e' // 다크 에디터 스타일
+              }}>
+                {/* 라인 넘버 */}
+                <div style={{
+                  position: 'absolute',
+                  left: 0,
+                  top: 0,
+                  bottom: 0,
+                  width: '50px',
+                  background: '#252526',
+                  borderRight: '1px solid #333',
+                  padding: '11px 8px',
+                  fontSize: '12px',
+                  lineHeight: '1.6',
+                  color: '#858585',
+                  fontFamily: 'Monaco, Menlo, "Ubuntu Mono", Consolas, "source-code-pro", monospace',
+                  textAlign: 'right',
+                  userSelect: 'none',
+                  overflow: 'hidden',
+                  zIndex: 3
+                }}>
+                  {inputCode.split('\n').map((_, index) => (
+                    <div key={index} style={{ height: '20.8px' }}>
+                      {index + 1}
+                    </div>
+                  ))}
+                </div>
+                
+                {/* 구문 강조 오버레이 */}
                 {inputCode ? (
                   <div style={{
                     position: 'absolute',
                     top: 0,
-                    left: 0,
+                    left: '51px',
                     right: 0,
                     bottom: 0,
                     padding: '11px',
                     fontFamily: 'Monaco, Menlo, "Ubuntu Mono", Consolas, "source-code-pro", monospace',
                     fontSize: '13px',
                     lineHeight: '1.6',
-                    background: '#fafafa',
+                    background: 'transparent',
                     overflow: 'auto',
                     whiteSpace: 'pre-wrap',
                     wordBreak: 'break-word',
                     pointerEvents: 'none',
-                    zIndex: 1
+                    zIndex: 1,
+                    color: '#d4d4d4' // 기본 텍스트 색상
                   }}>
                     {tokenizeCode(inputCode, getCurrentLanguage()).map((token, index) => (
                       <span 
@@ -613,12 +699,21 @@ const App: React.FC = () => {
                     ))}
                   </div>
                 ) : null}
+                
+                {/* 매인 입력 영역 */}
                 <TextArea
                   value={inputCode}
                   onChange={(e) => handleInputChange(e.target.value)}
-                  placeholder={`구분자를 포함한 텍스트/코드를 입력하세요... 예:
-apple/fruit/red
+                  placeholder={`구분자를 포함한 텍스트/코드를 입력하세요...
+
+예시:
+var config = {
+pardiv : 'periodBtn',
+periodType : "event"
+};
+
 function test() { return 'hello'; }
+
 SELECT * FROM users WHERE age > 18`}
                   style={{ 
                     height: '100%',
@@ -626,13 +721,16 @@ SELECT * FROM users WHERE age > 18`}
                     fontSize: '13px',
                     lineHeight: '1.6',
                     border: 'none',
-                    background: inputCode ? 'transparent' : '#fafafa',
-                    color: inputCode ? 'transparent' : '#666',
+                    background: inputCode ? 'transparent' : '#1e1e1e',
+                    color: inputCode ? 'transparent' : '#858585',
                     zIndex: 2,
                     position: 'relative',
-                    caretColor: '#000'
+                    caretColor: '#ffffff',
+                    paddingLeft: '62px', // 라인 넘버 공간 확보
+                    resize: 'none'
                   }}
                   bordered={false}
+                  autoSize={false}
                 />
               </div>
             </Card>
@@ -663,33 +761,63 @@ SELECT * FROM users WHERE age > 18`}
               }
               style={{ height: '100%' }}
             >
-              <div style={{ height: '500px', border: '1px solid #d9d9d9', borderRadius: '6px', overflow: 'hidden' }}>
+              <div style={{ 
+                height: '500px', 
+                border: '1px solid #d9d9d9', 
+                borderRadius: '6px', 
+                overflow: 'hidden',
+                background: '#1e1e1e',
+                position: 'relative'
+              }}>
                 {outputCode ? (
-                  <pre style={{
-                    margin: 0,
-                    padding: '16px',
-                    fontSize: '13px',
-                    lineHeight: '1.6',
-                    fontFamily: 'Monaco, Menlo, "Ubuntu Mono", Consolas, "source-code-pro", monospace',
-                    background: '#fafafa',
-                    color: '#262626',
+                  <div style={{
+                    position: 'relative',
                     height: '100%',
-                    overflow: 'auto',
-                    whiteSpace: 'pre-wrap',
-                    wordBreak: 'break-word'
+                    overflow: 'auto'
                   }}>
-                    {outputCode.split('\n').map((line, index) => (
-                      <div key={index} style={{ display: 'flex' }}>
-                        <span style={{ 
-                          color: '#999', 
-                          marginRight: '12px',
-                          minWidth: '30px',
-                          textAlign: 'right',
-                          userSelect: 'none'
-                        }}>
+                    {/* 라인 넘버 */}
+                    <div style={{
+                      position: 'absolute',
+                      left: 0,
+                      top: 0,
+                      bottom: 0,
+                      width: '50px',
+                      background: '#252526',
+                      borderRight: '1px solid #333',
+                      padding: '16px 8px',
+                      fontSize: '12px',
+                      lineHeight: '1.6',
+                      color: '#858585',
+                      fontFamily: 'Monaco, Menlo, "Ubuntu Mono", Consolas, "source-code-pro", monospace',
+                      textAlign: 'right',
+                      userSelect: 'none',
+                      overflow: 'hidden',
+                      zIndex: 1
+                    }}>
+                      {outputCode.split('\n').map((_, index) => (
+                        <div key={index} style={{ height: '20.8px' }}>
                           {index + 1}
-                        </span>
-                        <span style={{ flex: 1 }}>
+                        </div>
+                      ))}
+                    </div>
+                    
+                    {/* 코드 내용 */}
+                    <pre style={{
+                      margin: 0,
+                      padding: '16px',
+                      paddingLeft: '62px',
+                      fontSize: '13px',
+                      lineHeight: '1.6',
+                      fontFamily: 'Monaco, Menlo, "Ubuntu Mono", Consolas, "source-code-pro", monospace',
+                      background: 'transparent',
+                      color: '#d4d4d4',
+                      height: '100%',
+                      overflow: 'auto',
+                      whiteSpace: 'pre-wrap',
+                      wordBreak: 'break-word'
+                    }}>
+                      {outputCode.split('\n').map((line, index) => (
+                        <div key={index} style={{ minHeight: '20.8px' }}>
                           {getCurrentLanguage() && getCurrentLanguage() !== 'text' ? (
                             tokenizeCode(line, getCurrentLanguage()).map((token, tokenIndex) => (
                               <span 
@@ -703,20 +831,20 @@ SELECT * FROM users WHERE age > 18`}
                               </span>
                             ))
                           ) : (
-                            <span style={{ color: '#262626' }}>{line}</span>
+                            <span style={{ color: '#d4d4d4' }}>{line || '\u00A0'}</span>
                           )}
-                        </span>
-                      </div>
-                    ))}
-                  </pre>
+                        </div>
+                      ))}
+                    </pre>
+                  </div>
                 ) : (
                   <div style={{ 
                     height: '100%', 
                     display: 'flex', 
                     alignItems: 'center', 
                     justifyContent: 'center',
-                    background: '#fafafa',
-                    color: '#999',
+                    background: '#1e1e1e',
+                    color: '#858585',
                     fontSize: '14px',
                     flexDirection: 'column',
                     gap: '8px'
