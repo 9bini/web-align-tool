@@ -12,14 +12,16 @@ import {
   Tooltip,
   Tag,
   Select,
-  Badge
+  Badge,
+  Switch
 } from 'antd';
 import { 
   CopyOutlined, 
   ClearOutlined, 
   EditOutlined,
   CheckSquareOutlined,
-  SortAscendingOutlined
+  SortAscendingOutlined,
+  BulbOutlined
 } from '@ant-design/icons';
 
 const { Header, Content } = Layout;
@@ -33,6 +35,7 @@ const App: React.FC = () => {
   const [selectedDelimiter, setSelectedDelimiter] = useState<string>('/');
   const [detectedLanguage, setDetectedLanguage] = useState<string>('');
   const [manualLanguage, setManualLanguage] = useState<string>('auto');
+  const [smartAlignment, setSmartAlignment] = useState<boolean>(true);
 
   const detectLanguage = (code: string): string => {
     const text = code.toLowerCase();
@@ -279,6 +282,59 @@ const App: React.FC = () => {
     return tokens;
   };
 
+  const smartSplit = (line: string, delimiter: string): string[] => {
+    const result: string[] = [];
+    let current = '';
+    let inQuotes = false;
+    let quoteChar = '';
+    
+    for (let i = 0; i < line.length; i++) {
+      const char = line[i];
+      const remaining = line.substring(i);
+      
+      // 따옴표 처리
+      if ((char === '"' || char === "'" || char === '`') && !inQuotes) {
+        inQuotes = true;
+        quoteChar = char;
+        current += char;
+      } else if (char === quoteChar && inQuotes) {
+        inQuotes = false;
+        quoteChar = '';
+        current += char;
+      }
+      // 따옴표 안에서는 구분자 무시
+      else if (inQuotes) {
+        current += char;
+      }
+      // 구분자 발견
+      else if (remaining.startsWith(delimiter)) {
+        // 시간 패턴 보호 (HH:MM:SS, HH:MM)
+        if (delimiter === ':') {
+          const beforeColon = current.match(/(\d{1,2})$/);
+          const afterColon = remaining.match(/^:(\d{1,2})/); 
+          
+          if (beforeColon && afterColon) {
+            // 시간 패턴이므로 분할하지 않음
+            current += char;
+            continue;
+          }
+        }
+        
+        result.push(current.trim());
+        current = '';
+        i += delimiter.length - 1; // 다중 문자 구분자 처리
+      } else {
+        current += char;
+      }
+    }
+    
+    if (current) {
+      result.push(current.trim());
+    }
+    
+    return result;
+  };
+
   const getTokenColor = (type: string): string => {
     const colors: { [key: string]: string } = {
       keyword: '#0066CC',    // Blue
@@ -313,11 +369,15 @@ const App: React.FC = () => {
         lines.map(line => line.replace(/\//g, '//')) : lines;
       
       const rows = processedLines.map(line => {
-        // 다중 문자 구분자 지원
-        if (selectedDelimiter === '//' || selectedDelimiter.length > 1) {
+        if (smartAlignment) {
+          return smartSplit(line, selectedDelimiter);
+        } else {
+          // 기본 분할
+          if (selectedDelimiter === '//' || selectedDelimiter.length > 1) {
+            return line.split(selectedDelimiter).map(col => col.trim());
+          }
           return line.split(selectedDelimiter).map(col => col.trim());
         }
-        return line.split(selectedDelimiter).map(col => col.trim());
       });
       
       // 최대 컬럼 수 계산
@@ -412,11 +472,11 @@ const App: React.FC = () => {
           <Col span={24}>
             <Card style={{ marginBottom: '24px' }}>
               <div style={{ textAlign: 'center', marginBottom: '24px' }}>
-                <Space size="middle">
+                <Space size="middle" wrap>
                   <Select
                     value={selectedDelimiter}
                     onChange={setSelectedDelimiter}
-                    style={{ minWidth: '120px' }}
+                    style={{ minWidth: '140px' }}
                     options={[
                       { label: '/ → // (슬래시)', value: '/' },
                       { label: '// (더블 슬래시)', value: '//' },
@@ -424,6 +484,15 @@ const App: React.FC = () => {
                       { label: ', (콤마)', value: ',' }
                     ]}
                   />
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <BulbOutlined style={{ color: smartAlignment ? '#1890ff' : '#999' }} />
+                    <Switch 
+                      checked={smartAlignment}
+                      onChange={setSmartAlignment}
+                      size="small"
+                    />
+                    <span style={{ fontSize: '12px', color: '#666' }}>스마트 정렬</span>
+                  </div>
                   <Button 
                     type="primary" 
                     size="large"
