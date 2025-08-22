@@ -28,12 +28,12 @@
     "antd": "^5.27.1",
     "dayjs": "^1.11.13",
     "react": "^19.1.1",
-    "react-dom": "^19.1.1",
-    "typescript": "^5.9.2"
+    "react-dom": "^19.1.1"
   },
   "devDependencies": {
     "@types/node": "^24.3.0",
     "@vitejs/plugin-react": "^5.0.1",
+    "typescript": "^5.9.2",
     "vite": "^7.1.3"
   }
 }
