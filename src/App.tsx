@@ -36,13 +36,17 @@ import {
   FileTextOutlined,
   BugOutlined,
   ClockCircleOutlined,
-  WarningOutlined
+  WarningOutlined,
+  SettingOutlined
 } from '@ant-design/icons';
 
 // 서비스와 컴포넌트 임포트
 import { FormattingService } from './services/FormattingService';
 import LanguageSelector from './components/LanguageSelector';
 import ConventionSelector from './components/ConventionSelector';
+import ConventionEditor from './components/ConventionEditor';
+import ConventionDisplay from './components/ConventionDisplay';
+import ConventionDocumentation from './components/ConventionDocumentation';
 import IdeExportModal from './components/IdeExportModal';
 import { 
   SupportedLanguage, 
@@ -81,6 +85,10 @@ const App: React.FC = () => {
   const [ideExportModalVisible, setIdeExportModalVisible] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [autoFormat, setAutoFormat] = useState(false);
+  const [showConventionEditor, setShowConventionEditor] = useState(false);
+  const [showConventionDocs, setShowConventionDocs] = useState(false);
+  const [customConvention, setCustomConvention] = useState<FormattingConvention | null>(null);
+  const [, setCustomConventions] = useState<PresetConvention[]>([]);
 
   /**
    * 언어 변경 시 기본 프리셋을 설정합니다.
@@ -150,7 +158,7 @@ const App: React.FC = () => {
       const result = FormattingService.formatCode(
         inputCode,
         selectedLanguage,
-        selectedPreset.convention
+        getCurrentConvention()
       );
       
       setOutputCode(result.formattedCode);
@@ -273,6 +281,39 @@ const App: React.FC = () => {
   const handlePresetChange = (presetId: string, preset: PresetConvention) => {
     setSelectedPresetId(presetId);
     setSelectedPreset(preset);
+    setCustomConvention(null); // 프리셋 변경 시 커스텀 컨벤션 초기화
+  };
+
+  /**
+   * 커스텀 컨벤션 변경 핸들러
+   */
+  const handleConventionChange = (convention: FormattingConvention) => {
+    setCustomConvention(convention);
+  };
+
+  /**
+   * 커스텀 컨벤션 저장 핸들러
+   */
+  const handleSaveCustomConvention = (name: string, convention: FormattingConvention) => {
+    const customPreset: PresetConvention = {
+      id: `custom-${Date.now()}`,
+      name,
+      language: selectedLanguage,
+      description: `사용자 정의 ${FormattingService.getLanguageDisplayName(selectedLanguage)} 컨벤션`,
+      popularity: 5,
+      isOfficial: false,
+      convention
+    };
+    
+    setCustomConventions(prev => [...prev, customPreset]);
+    message.success(`"${name}" 컨벤션이 저장되었습니다.`);
+  };
+
+  /**
+   * 현재 적용할 컨벤션 반환
+   */
+  const getCurrentConvention = (): FormattingConvention => {
+    return customConvention || selectedPreset?.convention || {} as FormattingConvention;
   };
 
   /**
@@ -474,6 +515,32 @@ const App: React.FC = () => {
                       selectedPresetId={selectedPresetId}
                       onPresetChange={handlePresetChange}
                     />
+                    
+                    {/* 컨벤션 도구 버튼들 */}
+                    <Space direction="vertical" style={{ width: '100%' }}>
+                      <Button 
+                        type={showConventionEditor ? "primary" : "default"}
+                        icon={<SettingOutlined />} 
+                        onClick={() => {
+                          setShowConventionEditor(!showConventionEditor);
+                          setShowConventionDocs(false);
+                        }}
+                        block
+                      >
+                        {showConventionEditor ? '편집기 닫기' : '컨벤션 편집'}
+                      </Button>
+                      <Button 
+                        type={showConventionDocs ? "primary" : "default"}
+                        icon={<FileTextOutlined />} 
+                        onClick={() => {
+                          setShowConventionDocs(!showConventionDocs);
+                          setShowConventionEditor(false);
+                        }}
+                        block
+                      >
+                        {showConventionDocs ? '가이드 닫기' : '규칙 가이드'}
+                      </Button>
+                    </Space>
                   </>
                 )}
 
@@ -540,6 +607,33 @@ const App: React.FC = () => {
           padding: '24px',
           transition: 'margin-left 0.2s'
         }}>
+          {/* 컨벤션 표시, 편집기, 문서화 */}
+          {activeMode === 'code' && selectedPreset && (
+            <>
+              <ConventionDisplay
+                language={selectedLanguage}
+                preset={selectedPreset}
+                convention={getCurrentConvention()}
+                visible={!showConventionEditor && !showConventionDocs}
+              />
+              
+              {showConventionEditor && (
+                <ConventionEditor
+                  language={selectedLanguage}
+                  convention={getCurrentConvention()}
+                  onConventionChange={handleConventionChange}
+                  onSaveCustom={handleSaveCustomConvention}
+                />
+              )}
+              
+              {showConventionDocs && (
+                <ConventionDocumentation
+                  language={selectedLanguage}
+                />
+              )}
+            </>
+          )}
+
           {/* 액션 바 */}
           <Card style={{ marginBottom: '24px' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -550,9 +644,14 @@ const App: React.FC = () => {
                   {activeMode === 'json-tools' && 'JSON 포매팅 도구'}
                 </Text>
                 {selectedPreset && (
-                  <Tag color="blue" style={{ marginLeft: '8px' }}>
-                    {selectedPreset.name}
-                  </Tag>
+                  <Space style={{ marginLeft: '8px' }}>
+                    <Tag color="blue">{selectedPreset.name}</Tag>
+                    {customConvention && (
+                      <Tag color="orange" icon={<EditOutlined />}>
+                        수정됨
+                      </Tag>
+                    )}
+                  </Space>
                 )}
               </div>
               
