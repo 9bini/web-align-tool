@@ -17,7 +17,9 @@ import {
   ClearOutlined, 
   EditOutlined,
   CheckSquareOutlined,
-  SortAscendingOutlined
+  SortAscendingOutlined,
+  CodeOutlined,
+  CompressOutlined
 } from '@ant-design/icons';
 
 const { Header, Content } = Layout;
@@ -28,6 +30,7 @@ const App: React.FC = () => {
   const [inputCode, setInputCode] = useState<string>('');
   const [outputCode, setOutputCode] = useState<string>('');
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
+  const [activeMode, setActiveMode] = useState<'delimiter' | 'json'>('delimiter');
 
   const sortByDelimiter = () => {
     if (!inputCode.trim()) {
@@ -97,6 +100,46 @@ const App: React.FC = () => {
     }
   };
 
+  const prettifyJson = () => {
+    if (!inputCode.trim()) {
+      message.warning('JSON을 입력해주세요.');
+      return;
+    }
+
+    setIsProcessing(true);
+    try {
+      const parsed = JSON.parse(inputCode);
+      const prettified = JSON.stringify(parsed, null, 2);
+      setOutputCode(prettified);
+      message.success('JSON 포맷 정리 완료!');
+    } catch (error) {
+      message.error('유효하지 않은 JSON 형식입니다.');
+      console.error(error);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const minifyJson = () => {
+    if (!inputCode.trim()) {
+      message.warning('JSON을 입력해주세요.');
+      return;
+    }
+
+    setIsProcessing(true);
+    try {
+      const parsed = JSON.parse(inputCode);
+      const minified = JSON.stringify(parsed);
+      setOutputCode(minified);
+      message.success('JSON 압축 완료!');
+    } catch (error) {
+      message.error('유효하지 않은 JSON 형식입니다.');
+      console.error(error);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   const clearAll = () => {
     setInputCode('');
     setOutputCode('');
@@ -122,7 +165,7 @@ const App: React.FC = () => {
               margin: 0,
               fontWeight: 600
             }}>
-              / 구분자 컬럼 정렬기
+              {activeMode === 'delimiter' ? '/ 구분자 컬럼 정렬기' : 'JSON 포맷터'}
             </Title>
           </div>
         </div>
@@ -133,16 +176,71 @@ const App: React.FC = () => {
           <Col span={24}>
             <Card style={{ marginBottom: '24px' }}>
               <div style={{ textAlign: 'center', marginBottom: '24px' }}>
-                <Button 
-                  type="primary" 
-                  size="large"
-                  icon={<SortAscendingOutlined />}
-                  onClick={sortByDelimiter}
-                  loading={isProcessing}
-                  style={{ minWidth: '200px' }}
-                >
-                  / 구분자 컬럼 정렬
-                </Button>
+                <Space direction="vertical" size="large" style={{ width: '100%' }}>
+                  <Space size="large">
+                    <Button 
+                      type={activeMode === 'delimiter' ? 'primary' : 'default'}
+                      size="large"
+                      icon={<SortAscendingOutlined />}
+                      onClick={() => {
+                        setActiveMode('delimiter');
+                        setInputCode('');
+                        setOutputCode('');
+                      }}
+                    >
+                      컬럼 정렬
+                    </Button>
+                    <Button 
+                      type={activeMode === 'json' ? 'primary' : 'default'}
+                      size="large"
+                      icon={<CodeOutlined />}
+                      onClick={() => {
+                        setActiveMode('json');
+                        setInputCode('');
+                        setOutputCode('');
+                      }}
+                    >
+                      JSON 포맷터
+                    </Button>
+                  </Space>
+                  
+                  {activeMode === 'delimiter' && (
+                    <Button 
+                      type="primary" 
+                      size="large"
+                      icon={<SortAscendingOutlined />}
+                      onClick={sortByDelimiter}
+                      loading={isProcessing}
+                      style={{ minWidth: '200px' }}
+                    >
+                      / 구분자 컬럼 정렬
+                    </Button>
+                  )}
+                  
+                  {activeMode === 'json' && (
+                    <Space size="middle">
+                      <Button 
+                        type="primary" 
+                        size="large"
+                        icon={<CodeOutlined />}
+                        onClick={prettifyJson}
+                        loading={isProcessing}
+                        style={{ minWidth: '150px' }}
+                      >
+                        JSON 정리
+                      </Button>
+                      <Button 
+                        size="large"
+                        icon={<CompressOutlined />}
+                        onClick={minifyJson}
+                        loading={isProcessing}
+                        style={{ minWidth: '150px' }}
+                      >
+                        JSON 압축
+                      </Button>
+                    </Space>
+                  )}
+                </Space>
               </div>
             </Card>
           </Col>
@@ -169,11 +267,22 @@ const App: React.FC = () => {
                 <TextArea
                   value={inputCode}
                   onChange={(e) => setInputCode(e.target.value)}
-                  placeholder={`/ 구분자를 포함한 텍스트를 입력하세요... 예:
+                  placeholder={activeMode === 'delimiter' 
+                    ? `/ 구분자를 포함한 텍스트를 입력하세요... 예:
 apple/fruit/red
 banana/fruit/yellow  
 carrot/vegetable/orange
-tomato/vegetable/red`}
+tomato/vegetable/red`
+                    : `JSON 데이터를 입력하세요... 예:
+{
+  "name": "John",
+  "age": 30,
+  "items": ["apple", "banana"],
+  "address": {
+    "city": "Seoul",
+    "country": "Korea"
+  }
+}`}
                   style={{ 
                     height: '100%',
                     fontFamily: 'Monaco, Menlo, "Ubuntu Mono", Consolas, "source-code-pro", monospace',
@@ -195,7 +304,7 @@ tomato/vegetable/red`}
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <span>
                     <CheckSquareOutlined style={{ marginRight: '8px', color: '#1890ff' }} />
-                    정렬 결과
+                    {activeMode === 'delimiter' ? '정렬 결과' : 'JSON 포맷 결과'}
                   </span>
                   <Space>
                     <Tag color="blue">{outputCode.split('\n').length} 줄</Tag>
@@ -257,7 +366,7 @@ tomato/vegetable/red`}
                     gap: '8px'
                   }}>
                     <SortAscendingOutlined style={{ fontSize: '24px' }} />
-                    <div>컬럼 정렬된 결과가 여기에 표시됩니다</div>
+                    <div>{activeMode === 'delimiter' ? '컬럼 정렬된 결과가 여기에 표시됩니다' : 'JSON 포맷된 결과가 여기에 표시됩니다'}</div>
                   </div>
                 )}
               </div>
