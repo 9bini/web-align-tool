@@ -20,7 +20,9 @@ import {
   EditOutlined,
   CheckSquareOutlined,
   SortAscendingOutlined,
-  BulbOutlined
+  BulbOutlined,
+  CodeOutlined,
+  CompressOutlined
 } from '@ant-design/icons';
 
 const { Header, Content } = Layout;
@@ -35,9 +37,20 @@ const App: React.FC = () => {
   const [detectedLanguage, setDetectedLanguage] = useState<string>('');
   const [manualLanguage, setManualLanguage] = useState<string>('auto');
   const [smartAlignment, setSmartAlignment] = useState<boolean>(true);
+  const [activeMode, setActiveMode] = useState<'delimiter' | 'json'>('delimiter');
 
   const detectLanguage = (code: string): string => {
     const text = code.toLowerCase();
+    
+    // JSON 검사 (가장 먼저)
+    if (activeMode === 'json' || text.trim().startsWith('{') || text.trim().startsWith('[')) {
+      try {
+        JSON.parse(text);
+        return 'json';
+      } catch {
+        // JSON이 아니면 계속 진행
+      }
+    }
     
     if (text.includes('function') || text.includes('const ') || text.includes('let ') || text.includes('var ') || text.includes('=>')) {
       return 'javascript';
@@ -72,6 +85,7 @@ const App: React.FC = () => {
       sql: '#336791',
       html: '#e34f26',
       css: '#1572b6',
+      json: '#ff6b35',
       text: '#666666'
     };
     return colors[language] || '#666666';
@@ -101,6 +115,8 @@ const App: React.FC = () => {
         return tokenizeHtml(code);
       case 'css':
         return tokenizeCss(code);
+      case 'json':
+        return tokenizeJson(code);
       default:
         return [{ text: code, type: 'text' }];
     }
@@ -213,6 +229,89 @@ const App: React.FC = () => {
   const tokenizeCss = (code: string): Array<{text: string, type: string}> => {
     const properties = ['color', 'background', 'margin', 'padding', 'border', 'font', 'width', 'height', 'display', 'position'];
     return tokenizeGeneric(code, properties, '/*', '*/');
+  };
+
+  const tokenizeJson = (code: string): Array<{text: string, type: string}> => {
+    const tokens: Array<{text: string, type: string}> = [];
+    let i = 0;
+    
+    while (i < code.length) {
+      const char = code[i];
+      
+      // 문자열
+      if (char === '"') {
+        let str = '"';
+        i++;
+        while (i < code.length && code[i] !== '"') {
+          if (code[i] === '\\' && i + 1 < code.length) {
+            str += code[i] + code[i + 1];
+            i += 2;
+          } else {
+            str += code[i];
+            i++;
+          }
+        }
+        if (i < code.length) {
+          str += '"';
+          i++;
+        }
+        
+        // 키인지 값인지 확인 (다음 문자가 :인지 확인)
+        let nextNonSpace = i;
+        while (nextNonSpace < code.length && /\s/.test(code[nextNonSpace])) {
+          nextNonSpace++;
+        }
+        
+        const isKey = nextNonSpace < code.length && code[nextNonSpace] === ':';
+        tokens.push({ text: str, type: isKey ? 'key' : 'string' });
+        continue;
+      }
+      
+      // 숫자
+      if (/\d/.test(char) || (char === '-' && /\d/.test(code[i + 1]))) {
+        let num = '';
+        if (char === '-') {
+          num += char;
+          i++;
+        }
+        while (i < code.length && /[\d.]/.test(code[i])) {
+          num += code[i];
+          i++;
+        }
+        tokens.push({ text: num, type: 'number' });
+        continue;
+      }
+      
+      // 불린값과 null
+      if (code.substring(i, i + 4) === 'true') {
+        tokens.push({ text: 'true', type: 'boolean' });
+        i += 4;
+        continue;
+      }
+      if (code.substring(i, i + 5) === 'false') {
+        tokens.push({ text: 'false', type: 'boolean' });
+        i += 5;
+        continue;
+      }
+      if (code.substring(i, i + 4) === 'null') {
+        tokens.push({ text: 'null', type: 'null' });
+        i += 4;
+        continue;
+      }
+      
+      // 특수 문자
+      if (/[{}[\]:,]/.test(char)) {
+        tokens.push({ text: char, type: 'punctuation' });
+        i++;
+        continue;
+      }
+      
+      // 기타 (공백 등)
+      tokens.push({ text: char, type: 'text' });
+      i++;
+    }
+    
+    return tokens;
   };
 
   const tokenizeGeneric = (code: string, keywords: string[], commentStart: string, commentEnd?: string): Array<{text: string, type: string}> => {
@@ -354,6 +453,10 @@ const App: React.FC = () => {
       comment: '#6A9955',    // Green (comments)
       number: '#B5CEA8',     // Light Green (numbers)
       tag: '#92C5F8',        // Light Blue (HTML tags)
+      key: '#9CDCFE',        // Light Blue (JSON keys)
+      boolean: '#569CD6',    // Light Blue (true, false)
+      null: '#569CD6',       // Light Blue (null)
+      punctuation: '#D4D4D4', // Light Gray (brackets, commas)
       text: '#D4D4D4',       // Light Gray (default text)
       newline: 'transparent'
     };
@@ -501,6 +604,46 @@ const App: React.FC = () => {
       message.success(`${selectedDelimiter} 구분자 기준 컬럼 정렬 완료!`);
     } catch (error) {
       message.error('정렬 중 오류가 발생했습니다.');
+      console.error(error);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const prettifyJson = () => {
+    if (!inputCode.trim()) {
+      message.warning('JSON을 입력해주세요.');
+      return;
+    }
+
+    setIsProcessing(true);
+    try {
+      const parsed = JSON.parse(inputCode);
+      const prettified = JSON.stringify(parsed, null, 2);
+      setOutputCode(prettified);
+      message.success('JSON 포맷 정리 완료!');
+    } catch (error) {
+      message.error('유효하지 않은 JSON 형식입니다.');
+      console.error(error);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const minifyJson = () => {
+    if (!inputCode.trim()) {
+      message.warning('JSON을 입력해주세요.');
+      return;
+    }
+
+    setIsProcessing(true);
+    try {
+      const parsed = JSON.parse(inputCode);
+      const minified = JSON.stringify(parsed);
+      setOutputCode(minified);
+      message.success('JSON 압축 완료!');
+    } catch (error) {
+      message.error('유효하지 않은 JSON 형식입니다.');
       console.error(error);
     } finally {
       setIsProcessing(false);
@@ -716,7 +859,7 @@ const App: React.FC = () => {
               margin: 0,
               fontWeight: 600
             }}>
-              스마트 코드 정렬기
+              {activeMode === 'delimiter' ? '스마트 코드 정렬기' : 'JSON 포맷터'}
             </Title>
           </div>
         </div>
@@ -727,7 +870,42 @@ const App: React.FC = () => {
           <Col span={24}>
             <Card style={{ marginBottom: '24px' }}>
               <div style={{ marginBottom: '24px' }}>
-                {/* 구분자 선택 버튼들 */}
+                {/* 모드 선택 버튼들 */}
+                <div style={{ marginBottom: '16px' }}>
+                  <div style={{ fontSize: '14px', fontWeight: '500', marginBottom: '8px', color: '#666' }}>
+                    작업 모드:
+                  </div>
+                  <Space wrap>
+                    <Button 
+                      type={activeMode === 'delimiter' ? 'primary' : 'default'}
+                      onClick={() => {
+                        setActiveMode('delimiter');
+                        setInputCode('');
+                        setOutputCode('');
+                      }}
+                      size="middle"
+                      icon={<SortAscendingOutlined />}
+                    >
+                      컬럼 정렬
+                    </Button>
+                    <Button 
+                      type={activeMode === 'json' ? 'primary' : 'default'}
+                      onClick={() => {
+                        setActiveMode('json');
+                        setInputCode('');
+                        setOutputCode('');
+                        setManualLanguage('json');
+                      }}
+                      size="middle"
+                      icon={<CodeOutlined />}
+                    >
+                      JSON 포맷터
+                    </Button>
+                  </Space>
+                </div>
+
+                {/* 구분자 선택 버튼들 (컬럼 정렬 모드일 때만) */}
+                {activeMode === 'delimiter' && (
                 <div style={{ marginBottom: '16px' }}>
                   <div style={{ fontSize: '14px', fontWeight: '500', marginBottom: '8px', color: '#666' }}>
                     구분자 선택:
@@ -763,8 +941,10 @@ const App: React.FC = () => {
                     </Button>
                   </Space>
                 </div>
+                )}
 
-                {/* 언어 선택 버튼들 */}
+                {/* 언어 선택 버튼들 (컬럼 정렬 모드일 때만) */}
+                {activeMode === 'delimiter' && (
                 <div style={{ marginBottom: '16px' }}>
                   <div style={{ fontSize: '14px', fontWeight: '500', marginBottom: '8px', color: '#666' }}>
                     언어 선택:
@@ -833,32 +1013,66 @@ const App: React.FC = () => {
                     >
                       Text
                     </Button>
+                    <Button 
+                      type={manualLanguage === 'json' ? 'primary' : 'default'}
+                      onClick={() => setManualLanguage('json')}
+                      size="small"
+                    >
+                      JSON
+                    </Button>
                   </Space>
                 </div>
+                )}
 
                 {/* 실행 버튼들 */}
                 <div style={{ textAlign: 'center' }}>
-                  <Space size="middle">
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <BulbOutlined style={{ color: smartAlignment ? '#1890ff' : '#999' }} />
-                      <Switch 
-                        checked={smartAlignment}
-                        onChange={setSmartAlignment}
-                        size="small"
-                      />
-                      <span style={{ fontSize: '12px', color: '#666' }}>스마트 정렬</span>
-                    </div>
-                    <Button 
-                      type="primary" 
-                      size="large"
-                      icon={<SortAscendingOutlined />}
-                      onClick={sortByDelimiter}
-                      loading={isProcessing}
-                      style={{ minWidth: '150px' }}
-                    >
-                      컬럼 정렬
-                    </Button>
-                  </Space>
+                  {activeMode === 'delimiter' && (
+                    <Space size="middle">
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <BulbOutlined style={{ color: smartAlignment ? '#1890ff' : '#999' }} />
+                        <Switch 
+                          checked={smartAlignment}
+                          onChange={setSmartAlignment}
+                          size="small"
+                        />
+                        <span style={{ fontSize: '12px', color: '#666' }}>스마트 정렬</span>
+                      </div>
+                      <Button 
+                        type="primary" 
+                        size="large"
+                        icon={<SortAscendingOutlined />}
+                        onClick={sortByDelimiter}
+                        loading={isProcessing}
+                        style={{ minWidth: '150px' }}
+                      >
+                        컬럼 정렬
+                      </Button>
+                    </Space>
+                  )}
+                  
+                  {activeMode === 'json' && (
+                    <Space size="middle">
+                      <Button 
+                        type="primary" 
+                        size="large"
+                        icon={<CodeOutlined />}
+                        onClick={prettifyJson}
+                        loading={isProcessing}
+                        style={{ minWidth: '150px' }}
+                      >
+                        JSON 정리
+                      </Button>
+                      <Button 
+                        size="large"
+                        icon={<CompressOutlined />}
+                        onClick={minifyJson}
+                        loading={isProcessing}
+                        style={{ minWidth: '150px' }}
+                      >
+                        JSON 압축
+                      </Button>
+                    </Space>
+                  )}
                 </div>
               </div>
             </Card>
@@ -962,7 +1176,8 @@ const App: React.FC = () => {
                   value={inputCode}
                   onChange={(e) => handleInputChange(e.target.value)}
                   onKeyDown={handleKeyDown}
-                  placeholder={`구분자를 포함한 텍스트/코드를 입력하세요...
+                  placeholder={activeMode === 'delimiter' 
+                    ? `구분자를 포함한 텍스트/코드를 입력하세요...
 
 예시:
 var config = {
@@ -976,7 +1191,23 @@ function test() {
 
 SELECT * FROM users WHERE age > 18
 
-ℹ️ Tab: 들여쓰기 | Shift+Tab: 들여쓰기 제거`}
+ℹ️ Tab: 들여쓰기 | Shift+Tab: 들여쓰기 제거`
+                    : `JSON 데이터를 입력하세요...
+
+예시:
+{
+  "name": "John",
+  "age": 30,
+  "items": ["apple", "banana"],
+  "address": {
+    "city": "Seoul",
+    "country": "Korea"
+  }
+}
+
+또는:
+
+[{"id": 1, "name": "Item 1"}, {"id": 2, "name": "Item 2"}]`}
                   style={{ 
                     height: '100%',
                     fontFamily: 'Monaco, Menlo, "Ubuntu Mono", Consolas, "source-code-pro", monospace',
@@ -1004,7 +1235,7 @@ SELECT * FROM users WHERE age > 18
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <span>
                     <CheckSquareOutlined style={{ marginRight: '8px', color: '#1890ff' }} />
-                    정렬 결과
+                    {activeMode === 'delimiter' ? '정렬 결과' : 'JSON 포맷 결과'}
                   </span>
                   <Space>
                     <Tag color="blue">{outputCode.split('\n').length} 줄</Tag>
@@ -1112,7 +1343,7 @@ SELECT * FROM users WHERE age > 18
                     gap: '8px'
                   }}>
                     <SortAscendingOutlined style={{ fontSize: '24px' }} />
-                    <div>컬럼 정렬된 결과가 여기에 표시됩니다</div>
+                    <div>{activeMode === 'delimiter' ? '컬럼 정렬된 결과가 여기에 표시됩니다' : 'JSON 포맷된 결과가 여기에 표시됩니다'}</div>
                   </div>
                 )}
               </div>
